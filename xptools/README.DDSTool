@@ -1,0 +1,226 @@
+-------------------------------------------------------------------------------
+
+
+                                  DDS TOOL
+
+
+-------------------------------------------------------------------------------
+CHANGE HISTORY:
+-------------------------------------------------------------------------------
+
+1.2		2/18/10	More advanced mip-map contrl options
+1.1		1/25/10	Quilting Added
+				Mipmap support changed
+				Control over gamma
+Version 3/11/08 Initial Version
+
+-------------------------------------------------------------------------------
+SYSTEM REQUIREMENTS AND INSTALLATION
+-------------------------------------------------------------------------------
+
+DDSTool runs on any Macintosh,Windows or Linux machine that runs X-Plane.  It is 
+a single executable that can be decompressed into any directory; for 
+compatibility with X-Grinder it must be in the same directory as X-Grinder.
+See the X-Grinder documentation for more details.
+
+-------------------------------------------------------------------------------
+USING DDSTool
+-------------------------------------------------------------------------------
+
+DDSTool converts PNG files to DDS files for use with X-Plane.  DDS always takes
+a PNG file and creates a DDS file of the same name but with the .dds suffix.
+
+To convert a PNG file using XGrinder and DDSTool, simply drag the PNG file
+into the X-Grinder window.
+
+The command-line syntax for DDSTool is:
+
+DDSTool <conversion> <flags> <src file> <dst file>
+
+DDSTool provides five modes of conversion.  These options list both the menu
+choice in XGrinder and the command-line option.  See the next section for 
+details on DXT1 vs. DXT3 vs. DXT5.
+
+Auto-pick compression
+--png2dxt
+
+In this mode DDSTool will use DXT1 compression for PNG files with no alpha
+channel and DXT5 for PNG files with an alpha channel.
+
+Use DXT1 Compression (1-bit alpha)
+--png2dxt1
+
+In this mode, the PNG file is always compressed using DXT1.
+
+Use DXT3 Compression (high-freq alpha)
+--png2dxt3
+
+In this mode, the PNG file is always compressed using DXT3.
+
+Use DXT5 Compression (smooth alpha)
+--png2dxt5
+
+In this mode, the PNG file is always compressed using DXT5.
+
+Use no compression
+--png2rgb
+
+This mode builds an uncompressed RGB DDS file.  Note that X-Plane may
+compress the image when loaded, so this should typically not be used except
+in a few rare cases.
+
+Mipmapping options:
+
+--std_mips
+
+With this option, DDSTool will produce mipmaps for you by box-filtering your
+image.
+
+--pre_mips
+
+If you pass this flag, the image is treated as if all mipmaps are present:
+the image should be double-width, and the images should be packed from
+left to right (large to small), aligned along the bottom edge of the image.
+Instead of computing mipmaps using a box filter, your images will be used.
+
+Use this feature when you want to tune the look of lower-res images for 
+improved clarity.
+
+--night_mips
+--fade_mips
+--ctl_mips
+
+Experimental mipmap generation techniques, docs coming later.
+
+Gamma control options:
+
+--gamma_22
+
+Write a DDS file with a gamma of 2.2, roughly matching sRGB.  Use this option
+when grinding files for X-Plane 10.
+
+--gamma_18
+
+Write a DDS file with a gamma of 1.8, roughly matching Mac gamma (pre 10.6.).
+Use this option when grinding images that must work on X-Plane 9 and 10.
+
+Scaling options:
+
+--scale_none
+
+Do not scale the image - it must already be a power of 2.
+
+--scale_up
+
+Scale up to the nearest poewr power of 2.
+
+--scale_down
+
+Scale down to the nearest power of 2.
+
+-- scale_half
+
+Scale down to half of the nearest power of 2.
+
+-------------------------------------------------------------------------------
+FORMS OF DXT COMPRESSION
+-------------------------------------------------------------------------------
+
+DXT1, DXT3, and DXT5 are the compression schemes that DDSTool can write into a
+DDS image file; they differ in how the alpha channel (transparency) of the 
+image is handled:
+
+* DXT1 contains "1-bit" alpha - that is, the alpha is either 100% opaque or
+  totally transparent.  The 1-bit alpha is part of the color information of
+  the image; there is no RGB color data behind the transparent parts.  This can
+  lead to artifacts around the edges of the image file.  DXT1 files use half
+  the VRAM of DXT3/DXT5, offering an 8:1 compression ratio over RGB+alpha vs.
+  a 4:1 compression ratio for DXT3/DXT5.
+  
+  Use DXT1 when your image contains no alpha information, or when the alpha
+  is just a sharp mask and a no-blend attribute prevents "color bleed" near
+  the edges of the image.
+  
+  NOTE: X-Plane will treat DXT1 as having alpha if there is at least one 
+  transparent pixel; it wil treat the image as not having an alpha channel if
+  there are no transparent pixels.  This means that you can use DXT1 for night
+  lighting masks as long as you don't have translucency (variable alpha) in
+  your night lighting texture.
+  
+* DXT3 contains 4-bit uncompressed alpha; smooth transitions of alpha will
+  look like they have distinct "steps", but very high frequency alpha
+  transitions can always be preserved.  Use DXT3 compression only if your image
+  has a complex alpha channel with rapid changes, and DXT5 produces noticeable
+  artifacts.
+  
+* DXT5 contains a compressed alpha channel; the compression can capture gentle
+  washes of alpha reasonably well, and can also capture high frequency data.
+  DXT5 is usually the best choice for any image with translucency; if your
+  image has alpha, try DXT5 first.
+
+The technical details of the DXTn compression schemes can be found here:
+
+http://www.opengl.org/registry/specs/EXT/texture_compression_s3tc.txt
+
+-------------------------------------------------------------------------------
+QUILTING
+-------------------------------------------------------------------------------
+
+DDSTool 1.1 contains an implementation of texture quilting.  Here's the basic
+idea:
+
+* You want to form a "detail" texture that has high frequency, is homogenous
+  (e.g. it doesn't have vivid details when viewed from far away) but does not
+  appear to repeat when close.
+* You have a source texture that is fairly uniform but does not tile.
+
+Texture quliting will cut many small "patches" from the source and paste them
+into a tiling texture.  Texture quiltng will attempt to blend and match the
+edges (cutting them along wavy lines) so that the resulting texture is seamless
+and artifact free.  To read more:
+
+http://www.robburke.net/mle/wang/
+
+(This implementation does quilting but not transfer or wang tiles.)
+
+To quilt a texture, you use this syntax:
+
+DDSTool --quilt src_png width height patch overlap trials destination
+
+Example:
+
+DDSTool --quilt grass.png 1024 1024 15 7 10 grass_texture.png
+
+This would create a new 1024x1024 texture based on 15 pixel patches of
+grass (overlapped by 7 pixels).  DDStool will make 10 tries to fit each patch,
+and hte result will be saved in grass_texture.png.  (Quilting is not available
+via XGrinder.)
+
+Arguments:
+
+The source file must be a PNG.  It does not have to be a power of 2 in size, but it
+must be at least as large as the patch size.  (In practice it should be quite a bit
+bigger.)  It should be an RGB or RGBA PNG.
+
+The width and height are the size of the output texture.  These should be a power
+of 2 if you want to use the texture with X-Plane.  Width and height do not need
+to be the same size.
+
+The patch size is the size of the element to be copied, and overlap is the number
+of pixels to overlap each patch.  A few limits:
+
+- The overlap must be no more than half the patch size.
+- The texture must be a multiple of the difference of the patch size and overlap
+  in both dimensions.
+  
+In the above example, the difference between patch and overlap is 8 pixels, and 1024
+is a multiple of 8.
+
+Larger overlap areas will often mean more consistent "tone" because more pixels will
+be tested between tiles to match tiles.
+
+Trials is the number of times to try different random slices to fit texture.  If you
+have a fast computer, large overlap, and a large source texture, you may want to try
+a fairly large (e.g. 1000+) number of trials to improve visual quality.
+
+THe output file specifies the location for the new texture.
